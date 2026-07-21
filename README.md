@@ -61,7 +61,7 @@ Pick one backend setup. `whisper.cpp` is the recommended default; Python `whispe
 ### Quickest path by platform
 
 - **macOS:** use `whisper.cpp` via Homebrew
-- **Ubuntu / Debian / WSL:** use the prebuilt `whisper.cpp` release tarball
+- **Ubuntu / Debian / WSL:** install the distro `whisper.cpp` package when available
 - **Windows:** use the prebuilt `whisper.cpp` zip
 - **Any platform with Python already set up:** use Python `whisper` via `pipx`
 
@@ -77,17 +77,18 @@ export PI_WHISPER_COMMAND="$(command -v whisper-cli)"
 export PI_WHISPER_MODEL="$HOME/models/ggml-base.bin"
 ```
 
-#### Ubuntu / Debian / WSL via upstream prebuilt binary
+#### Ubuntu / Debian / WSL via `apt`
 
 ```bash
-mkdir -p "$HOME/.local/opt/whisper.cpp" "$HOME/models"
-cd "$HOME/.local/opt/whisper.cpp"
-curl -LO https://github.com/ggml-org/whisper.cpp/releases/latest/download/whisper-bin-ubuntu-x64.tar.gz
-tar -xzf whisper-bin-ubuntu-x64.tar.gz
+sudo apt update
+sudo apt install -y whisper.cpp
+mkdir -p "$HOME/models"
 curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin -o "$HOME/models/ggml-base.bin"
-export PI_WHISPER_COMMAND="$HOME/.local/opt/whisper.cpp/build/bin/whisper-cli"
+export PI_WHISPER_COMMAND="$(command -v whisper-cli)"
 export PI_WHISPER_MODEL="$HOME/models/ggml-base.bin"
 ```
+
+If your distro does not package `whisper.cpp` yet, fall back to the upstream prebuilt release tarball.
 
 #### Windows via upstream prebuilt zip
 
