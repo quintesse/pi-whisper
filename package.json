@@ -1,0 +1,30 @@
+{
+  "name": "pi-whisper-fast",
+  "version": "0.1.0",
+  "description": "Pi extension that adds a whisper-fast transcription tool.",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "whisper",
+    "transcription"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "dependencies": {
+    "whisper-fast": "^1.0.1"
+  },
+  "peerDependencies": {
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "typebox": "^1.0.0"
+  },
+  "license": "MIT"
+}
