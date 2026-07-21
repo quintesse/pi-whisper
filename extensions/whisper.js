@@ -1,6 +1,6 @@
-import { access, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
-import { basename, extname, join, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import os from "node:os";
 import { promisify } from "node:util";
 import { Type } from "typebox";
@@ -9,6 +9,8 @@ const execFileAsync = promisify(execFile);
 const TOOL_NAME = "transcribe_audio";
 const STATUS_COMMAND = "whisper-status";
 const TEST_COMMAND = "whisper-transcribe";
+const MODEL_COMMAND = "whisper-model";
+const CONFIG_PATH = join(os.homedir(), ".pi", "agent", "whisper.json");
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const queueSeed = Promise.resolve();
 let queue = queueSeed;
@@ -46,6 +48,47 @@ export function readConfig(env = process.env) {
     model: normalizeMaybePath(env.PI_WHISPER_MODEL),
     modelDir: normalizeMaybePath(env.PI_WHISPER_MODEL_DIR || env.WHISPER_MODEL_DIR),
     nThreads,
+  };
+}
+
+async function readStoredConfig() {
+  const hasConfig = await pathExists(CONFIG_PATH);
+  if (!hasConfig) return { hasConfig: false };
+
+  try {
+    const parsed = JSON.parse(await readFile(CONFIG_PATH, "utf8"));
+    return {
+      hasConfig: true,
+      command: typeof parsed.command === "string" ? parsed.command.trim() || undefined : undefined,
+      model: typeof parsed.model === "string" ? normalizeMaybePath(parsed.model) : undefined,
+      modelDir: typeof parsed.modelDir === "string" ? normalizeMaybePath(parsed.modelDir) : undefined,
+      nThreads: Number.isInteger(parsed.nThreads) && parsed.nThreads >= 0 ? parsed.nThreads : undefined,
+    };
+  } catch {
+    return { hasConfig: true };
+  }
+}
+
+async function writeStoredConfig(config) {
+  await mkdir(dirname(CONFIG_PATH), { recursive: true });
+  await writeFile(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+}
+
+async function getConfig(env = process.env) {
+  const stored = await readStoredConfig();
+  const runtime = readConfig(env);
+  const preferStored = stored.hasConfig;
+  return {
+    command: preferStored ? stored.command ?? runtime.command : runtime.command ?? stored.command,
+    commandSource: preferStored
+      ? stored.command ? "config" : runtime.command ? "env" : undefined
+      : runtime.command ? "env" : stored.command ? "config" : undefined,
+    model: preferStored ? stored.model ?? runtime.model : runtime.model ?? stored.model,
+    modelSource: preferStored
+      ? stored.model ? "config" : runtime.model ? "env" : undefined
+      : runtime.model ? "env" : stored.model ? "config" : undefined,
+    modelDir: preferStored ? stored.modelDir ?? runtime.modelDir : runtime.modelDir ?? stored.modelDir,
+    nThreads: preferStored ? stored.nThreads ?? runtime.nThreads : runtime.nThreads ?? stored.nThreads,
   };
 }
 
@@ -148,9 +191,13 @@ async function scanModels(dir, candidates, depth = 0) {
   }
 }
 
-async function findSpeechModel(env = process.env) {
-  const config = readConfig(env);
-  if (config.model) return config.model;
+async function findSpeechModels(env = process.env) {
+  const config = await getConfig(env);
+  const candidates = [];
+
+  if (config.model && isLikelyPath(config.model) && await pathExists(config.model)) {
+    candidates.push(config.model);
+  }
 
   const dirs = [
     config.modelDir,
@@ -164,17 +211,31 @@ async function findSpeechModel(env = process.env) {
     join(os.homedir(), "Models"),
   ].filter(Boolean);
 
-  const candidates = [];
   for (const dir of dirs) await scanModels(dir, candidates);
-  return candidates.sort((a, b) => scoreSpeechModel(b) - scoreSpeechModel(a))[0];
+  return [...new Set(candidates)].sort((a, b) => scoreSpeechModel(b) - scoreSpeechModel(a));
+}
+
+async function findSpeechModel(env = process.env) {
+  const config = await getConfig(env);
+  if (config.model) {
+    if (isLikelyPath(config.model) && !(await pathExists(config.model))) {
+      return { error: `Configured Whisper model not found: ${config.model}` };
+    }
+    return { model: config.model, source: config.modelSource ?? "config" };
+  }
+
+  const models = await findSpeechModels(env);
+  if (models[0]) return { model: models[0], source: "auto" };
+  return { error: "No Whisper model found. Use /whisper-model to pick one, or put a model in a common cache directory." };
 }
 
 async function detectBackend(env = process.env) {
-  const config = readConfig(env);
-  const model = await findSpeechModel(env);
-  if (!model) {
-    return { error: "No Whisper model found. Set PI_WHISPER_MODEL or put a model in a common cache directory." };
+  const config = await getConfig(env);
+  const selectedModel = await findSpeechModel(env);
+  if (selectedModel.error) {
+    return { error: selectedModel.error };
   }
+  const model = selectedModel.model;
 
   const backend = backendForModel(model);
   const command = await findExecutable(
@@ -204,7 +265,9 @@ async function detectBackend(env = process.env) {
   return {
     backend,
     command,
+    commandSource: config.commandSource,
     model,
+    modelSource: selectedModel.source,
     nThreads: config.nThreads,
   };
 }
@@ -314,19 +377,53 @@ async function transcribe(ctx, params) {
   });
 }
 
+function modelLabel(model) {
+  return isLikelyPath(model) ? `${basename(model)} — ${model}` : model;
+}
+
 async function statusText() {
   const detected = await detectBackend();
   if (detected.error) return detected.error;
   return [
     `backend: ${detected.backend}`,
-    `command: ${detected.command}`,
-    `model: ${detected.model}`,
+    `command: ${detected.command}${detected.commandSource ? ` (${detected.commandSource})` : ""}`,
+    `model: ${detected.model}${detected.modelSource ? ` (${detected.modelSource})` : ""}`,
     `threads: ${detected.nThreads ?? "auto"}`,
   ].join(" | ");
 }
 
+async function listModelsText() {
+  const selected = await findSpeechModel();
+  const models = await findSpeechModels();
+  if (models.length === 0) {
+    return "No Whisper models found. Download one, then use /whisper-model list or /whisper-model select.";
+  }
+
+  const lines = models.map((model, index) => {
+    const marker = selected.model === model ? "*" : " ";
+    return `${marker} ${index + 1}. ${modelLabel(model)}`;
+  });
+
+  if (selected.model && !models.includes(selected.model)) {
+    lines.unshift(`* selected: ${selected.model}`);
+  }
+  return lines.join("\n");
+}
+
+async function selectModel(choice) {
+  const stored = await readStoredConfig();
+  await writeStoredConfig({ ...stored, model: choice });
+}
+
+async function clearSelectedModel() {
+  const stored = await readStoredConfig();
+  delete stored.model;
+  await writeStoredConfig(stored);
+}
+
 async function whisperTestText(cwd, args) {
-  const audioPath = args.trim() ? resolveUserPath(cwd, args.trim()) : await findDefaultTestAudio();
+  const trimmed = (args || "").trim();
+  const audioPath = trimmed ? resolveUserPath(cwd, trimmed) : await findDefaultTestAudio();
   if (!audioPath) {
     throw new Error("No default test audio found. Pass a file path, e.g. /whisper-transcribe ./sample.wav");
   }
@@ -347,6 +444,58 @@ async function whisperTestText(cwd, args) {
     `audio: ${audioPath}`,
     `transcript: ${(result.text || "(empty transcript)").replace(/\s+/g, " ").trim()}`,
   ].join(" | ");
+}
+
+function whisperModelUsage() {
+  return [
+    "Usage:",
+    "/whisper-model list",
+    "/whisper-model select",
+    "/whisper-model select 2",
+    "/whisper-model select /path/to/model.bin",
+    "/whisper-model clear",
+  ].join("\n");
+}
+
+async function selectModelText(cwd, args, ctx) {
+  const [subcommand = "", ...rest] = (args || "").trim().split(/\s+/).filter(Boolean);
+  const value = rest.join(" ");
+
+  if (!subcommand) return whisperModelUsage();
+  if (subcommand === "list") return listModelsText();
+  if (subcommand === "clear") {
+    await clearSelectedModel();
+    return "Cleared saved Whisper model. Auto-detection is active again.";
+  }
+  if (subcommand !== "select") throw new Error(whisperModelUsage());
+
+  const models = await findSpeechModels();
+
+  if (value) {
+    const index = Number(value);
+    const choice = Number.isInteger(index) && index >= 1 && index <= models.length
+      ? models[index - 1]
+      : resolveUserPath(cwd, value);
+    await assertFileExists(choice, "Model file");
+    await selectModel(choice);
+    return `Selected Whisper model: ${choice}`;
+  }
+
+  if (!ctx.hasUI) {
+    throw new Error("Use /whisper-model select <number|path>.");
+  }
+  if (models.length === 0) {
+    throw new Error("No Whisper models found. Download one first.");
+  }
+
+  const selected = await findSpeechModel();
+  const labels = models.map((model, index) => `${selected.model === model ? "* " : ""}${index + 1}. ${modelLabel(model)}`);
+  const picked = await ctx.ui.select("Select Whisper model", labels);
+  if (!picked) return "Whisper model selection cancelled.";
+
+  const choice = models[labels.indexOf(picked)];
+  await selectModel(choice);
+  return `Selected Whisper model: ${choice}`;
 }
 
 export default function whisperExtension(pi) {
@@ -386,6 +535,18 @@ export default function whisperExtension(pi) {
       try {
         ctx.ui.notify("Running whisper transcription...", "info");
         ctx.ui.notify(await whisperTestText(ctx.cwd, args), "info");
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+      }
+    },
+  });
+
+  pi.registerCommand(MODEL_COMMAND, {
+    description: "List, select, or clear the Whisper model to use",
+    handler: async (args, ctx) => {
+      try {
+        const text = await selectModelText(ctx.cwd, args, ctx);
+        ctx.ui.notify(text, text.startsWith("No Whisper models") ? "error" : "info");
       } catch (error) {
         ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
       }
