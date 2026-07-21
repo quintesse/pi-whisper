@@ -47,6 +47,7 @@ To manage models without environment variables:
 ```text
 /whisper-model list
 /whisper-model select
+/whisper-model clear
 ```
 
 ## What it detects
@@ -165,9 +166,8 @@ If you do not want to set `PI_WHISPER_MODEL`, use:
 /whisper-model list               # list detected local models
 /whisper-model select             # pick one interactively
 /whisper-model select 2           # pick model number 2
-/whisper-model select ./model.bin
-/whisper-model select base        # useful with Python whisper
-/whisper-model select auto        # clear saved selection and go back to auto-detect
+/whisper-model select /path/to/model.bin
+/whisper-model clear              # clear saved selection and go back to auto-detect
 ```
 
 The selected model is saved in `~/.pi/agent/whisper.json`.

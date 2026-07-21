@@ -452,9 +452,8 @@ function whisperModelUsage() {
     "/whisper-model list",
     "/whisper-model select",
     "/whisper-model select 2",
-    "/whisper-model select ./model.bin",
-    "/whisper-model select base",
-    "/whisper-model select auto",
+    "/whisper-model select /path/to/model.bin",
+    "/whisper-model clear",
   ].join("\n");
 }
 
@@ -464,27 +463,26 @@ async function selectModelText(cwd, args, ctx) {
 
   if (!subcommand) return whisperModelUsage();
   if (subcommand === "list") return listModelsText();
-  if (subcommand !== "select") throw new Error(whisperModelUsage());
-
-  const models = await findSpeechModels();
-
-  if (value === "auto" || value === "clear") {
+  if (subcommand === "clear") {
     await clearSelectedModel();
     return "Cleared saved Whisper model. Auto-detection is active again.";
   }
+  if (subcommand !== "select") throw new Error(whisperModelUsage());
+
+  const models = await findSpeechModels();
 
   if (value) {
     const index = Number(value);
     const choice = Number.isInteger(index) && index >= 1 && index <= models.length
       ? models[index - 1]
-      : isLikelyPath(value) ? resolveUserPath(cwd, value) : value;
-    if (isLikelyPath(choice)) await assertFileExists(choice, "Model file");
+      : resolveUserPath(cwd, value);
+    await assertFileExists(choice, "Model file");
     await selectModel(choice);
     return `Selected Whisper model: ${choice}`;
   }
 
   if (!ctx.hasUI) {
-    throw new Error("Use /whisper-model select <number|path|auto>.");
+    throw new Error("Use /whisper-model select <number|path>.");
   }
   if (models.length === 0) {
     throw new Error("No Whisper models found. Download one first.");
@@ -544,7 +542,7 @@ export default function whisperExtension(pi) {
   });
 
   pi.registerCommand(MODEL_COMMAND, {
-    description: "List or select the Whisper model to use",
+    description: "List, select, or clear the Whisper model to use",
     handler: async (args, ctx) => {
       try {
         const text = await selectModelText(ctx.cwd, args, ctx);
