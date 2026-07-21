@@ -1,34 +1,21 @@
-# pi-whisper-fast
+# pi-whisper
 
-Pi package that adds a `transcribe_audio` tool backed by [`whisper-fast`](https://github.com/whisperfast/whisper-fast).
+Pi package that adds a `transcribe_audio` tool backed by an existing local Whisper setup.
 
-## What it gives Pi
-
-- `transcribe_audio` tool for local audio files
-- `/whisper-fast-status` command for quick setup checks
-- lazy model loading, reused for the session
+It prefers `whisper.cpp`, falls back to Python `whisper`, and does not depend on a fragile native Node binding.
 
 ## Install
 
 From GitHub:
 
 ```bash
-pi install git:github.com/quintesse/pi-whisper-fast
+pi install git:github.com/quintesse/pi-whisper
 ```
 
 For local development:
 
 ```bash
-pi install /absolute/path/to/pi-whisper-fast
-```
-
-Then set a local Whisper model path:
-
-```bash
-export PI_WHISPER_FAST_MODEL=/absolute/path/to/ggml-base.bin
-# optional
-export PI_WHISPER_FAST_GPU=0
-export PI_WHISPER_FAST_THREADS=4
+pi install /absolute/path/to/pi-whisper
 ```
 
 Reload Pi:
@@ -43,11 +30,43 @@ Ask Pi something like:
 
 > Transcribe `./meeting.wav`
 
-Or check the extension directly:
+Or check detection directly:
 
 ```text
-/whisper-fast-status
+/whisper-status
 ```
+
+## What it detects
+
+### Backends
+
+- `whisper.cpp` via `whisper-cli`, `whisper.cpp`, or `main`
+- Python `whisper`
+
+### Common model locations
+
+- `~/.cache/whisper`
+- `~/.cache/whisper.cpp`
+- `~/.cache/huggingface/hub`
+- `~/.local/share/whisper`
+- `~/Library/Application Support/whisper.cpp`
+- `~/.pi/agent/models`
+- `~/models`
+- `~/Models`
+
+## Configuration
+
+Optional environment variables:
+
+- `PI_WHISPER_COMMAND` - explicit transcription executable path or command name
+- `PI_WHISPER_MODEL` - explicit model path, or Python Whisper model name like `base`
+- `PI_WHISPER_MODEL_DIR` - extra directory to scan for models
+- `PI_WHISPER_THREADS` - default thread count for `whisper.cpp`
+
+Compatibility aliases from the Telegram PR also work:
+
+- `WHISPER_COMMAND`
+- `WHISPER_MODEL_DIR`
 
 ## Tool parameters
 
@@ -56,29 +75,16 @@ Or check the extension directly:
 - `path` - local audio path
 - `language` - optional language code
 - `translate` - translate to English
-- `wordTimestamps` - request word timestamps
-- `timestamps` - append segment timestamps to the tool output
+- `wordTimestamps` - backend dependent
+- `timestamps` - append subtitle-style timestamps when available
 - `nThreads` - override thread count for one run
-- `prompt` - prompt text for the decoder
+- `prompt` - backend dependent
 
-## Configuration
+## Notes
 
-Environment variables:
-
-- `PI_WHISPER_FAST_MODEL` - required model file path
-- `PI_WHISPER_FAST_GPU` - `1|0`, `true|false`, `yes|no`
-- `PI_WHISPER_FAST_THREADS` - non-negative integer
-
-## Important platform note
-
-`whisper-fast` is a native module. The Pi extension is portable, but the upstream `whisper-fast` package must publish a matching native binary for your platform.
-
-On this repo's first WSL/Linux test, `whisper-fast@1.0.1` installed but failed to load because the package contents appeared to include only a Windows native binary. If you hit that too:
-
-- run Pi on native Windows instead of WSL, or
-- switch this package to a Linux-capable upstream build once one exists
-
-The extension handles that failure lazily, so Pi still starts and `/whisper-fast-status` will report the load error.
+- `whisper.cpp` is the preferred backend.
+- Some options depend on the backend actually found.
+- If nothing is detected, `/whisper-status` tells you what is missing instead of breaking Pi startup.
 
 ## Develop
 

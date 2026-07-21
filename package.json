@@ -1,7 +1,7 @@
 {
-  "name": "pi-whisper-fast",
-  "version": "0.1.0",
-  "description": "Pi extension that adds a whisper-fast transcription tool.",
+  "name": "pi-whisper",
+  "version": "0.2.0",
+  "description": "Pi extension that adds a local Whisper transcription tool.",
   "type": "module",
   "keywords": [
     "pi-package",
@@ -16,9 +16,6 @@
     "extensions": [
       "./extensions"
     ]
-  },
-  "dependencies": {
-    "whisper-fast": "^1.0.1"
   },
   "peerDependencies": {
     "typebox": "*"
