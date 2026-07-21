@@ -54,6 +54,60 @@ Or check detection directly:
 - `~/models`
 - `~/Models`
 
+## Backend setup
+
+## Option 1: `whisper.cpp` recommended
+
+### Linux
+
+```bash
+git clone https://github.com/ggml-org/whisper.cpp
+cd whisper.cpp
+cmake -B build
+cmake --build build -j
+./models/download-ggml-model.sh base
+```
+
+Then point `pi-whisper` at it:
+
+```bash
+export PI_WHISPER_COMMAND="$PWD/build/bin/whisper-cli"
+export PI_WHISPER_MODEL="$PWD/models/ggml-base.bin"
+```
+
+### macOS
+
+```bash
+brew install whisper-cpp
+mkdir -p ~/models
+curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin -o ~/models/ggml-base.bin
+export PI_WHISPER_COMMAND="$(command -v whisper-cli)"
+export PI_WHISPER_MODEL="$HOME/models/ggml-base.bin"
+```
+
+### Windows
+
+Build or download a `whisper.cpp` binary, then set:
+
+```powershell
+$env:PI_WHISPER_COMMAND="C:\path\to\whisper-cli.exe"
+$env:PI_WHISPER_MODEL="C:\path\to\ggml-base.bin"
+```
+
+## Option 2: Python `whisper`
+
+```bash
+python3 -m pip install -U openai-whisper
+whisper --model base sample.wav
+```
+
+Then either let `pi-whisper` auto-detect the cached model, or pin it explicitly:
+
+```bash
+export PI_WHISPER_COMMAND="$(command -v whisper)"
+export PI_WHISPER_MODEL=base
+```
+
 ## Configuration
 
 Optional environment variables:
