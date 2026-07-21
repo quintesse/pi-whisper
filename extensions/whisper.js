@@ -8,6 +8,7 @@ import { Type } from "typebox";
 const execFileAsync = promisify(execFile);
 const TOOL_NAME = "transcribe_audio";
 const STATUS_COMMAND = "whisper-status";
+const TEST_COMMAND = "whisper-test";
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const queueSeed = Promise.resolve();
 let queue = queueSeed;
@@ -277,6 +278,17 @@ function formatTranscript(text, timestampText) {
   return [text || "(empty transcript)", "", "Timestamps:", timestampText].join("\n");
 }
 
+async function findDefaultTestAudio() {
+  const candidates = [
+    "/usr/share/sounds/debian/samples/en-Wikipedia-Ignore_All_Rules.wav",
+    "/usr/share/sounds/debian/samples/ar-Wikipedia-Five_Pillars.wav",
+  ];
+  for (const candidate of candidates) {
+    if (await pathExists(candidate)) return candidate;
+  }
+  return undefined;
+}
+
 async function transcribe(ctx, params) {
   const audioPath = resolveUserPath(ctx.cwd, params.path);
   await assertFileExists(audioPath, "Audio file");
@@ -313,6 +325,30 @@ async function statusText() {
   ].join(" | ");
 }
 
+async function whisperTestText(cwd, args) {
+  const audioPath = args.trim() ? resolveUserPath(cwd, args.trim()) : await findDefaultTestAudio();
+  if (!audioPath) {
+    throw new Error("No default test audio found. Pass a file path, e.g. /whisper-test ./sample.wav");
+  }
+  await assertFileExists(audioPath, "Audio file");
+
+  const detected = await detectBackend();
+  if (detected.error) throw new Error(detected.error);
+
+  const result = await withQueue(async () => (
+    detected.backend === "whisper.cpp"
+      ? runWhisperCpp(detected.command, detected.model, audioPath, {}, detected.nThreads)
+      : runPythonWhisper(detected.command, detected.model, audioPath, {})
+  ));
+
+  return [
+    "whisper test ok",
+    `backend: ${detected.backend}`,
+    `audio: ${audioPath}`,
+    `transcript: ${(result.text || "(empty transcript)").replace(/\s+/g, " ").trim()}`,
+  ].join(" | ");
+}
+
 export default function whisperExtension(pi) {
   pi.registerTool({
     name: TOOL_NAME,
@@ -341,6 +377,18 @@ export default function whisperExtension(pi) {
     handler: async (_args, ctx) => {
       const text = await statusText();
       ctx.ui.notify(text, text.startsWith("backend:") ? "info" : "error");
+    },
+  });
+
+  pi.registerCommand(TEST_COMMAND, {
+    description: "Run a quick local transcription test, optionally with a file path",
+    handler: async (args, ctx) => {
+      try {
+        ctx.ui.notify("Running whisper test...", "info");
+        ctx.ui.notify(await whisperTestText(ctx.cwd, args), "info");
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+      }
     },
   });
 }
