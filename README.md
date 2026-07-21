@@ -36,6 +36,12 @@ Or check detection directly:
 /whisper-status
 ```
 
+Or run a quick transcription smoke test:
+
+```text
+/whisper-transcribe
+```
+
 ## What it detects
 
 ### Backends
@@ -141,6 +147,7 @@ To verify either backend:
 
 ```text
 /whisper-status
+/whisper-transcribe
 ```
 
 ## Configuration
