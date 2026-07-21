@@ -56,26 +56,18 @@ Or check detection directly:
 
 ## Backend setup
 
+If you just want the shortest path: install **`whisper.cpp`** if your platform has an easy binary, otherwise install **Python `whisper` with `pipx`**.
+
+### Easiest options by platform
+
+- **macOS:** `brew install whisper-cpp`
+- **Ubuntu / Debian / WSL:** download the prebuilt `whisper.cpp` release tarball
+- **Windows:** download the prebuilt `whisper.cpp` zip
+- **Any platform with Python:** `pipx install openai-whisper`
+
 ## Option 1: `whisper.cpp` recommended
 
-### Linux
-
-```bash
-git clone https://github.com/ggml-org/whisper.cpp
-cd whisper.cpp
-cmake -B build
-cmake --build build -j
-./models/download-ggml-model.sh base
-```
-
-Then point `pi-whisper` at it:
-
-```bash
-export PI_WHISPER_COMMAND="$PWD/build/bin/whisper-cli"
-export PI_WHISPER_MODEL="$PWD/models/ggml-base.bin"
-```
-
-### macOS
+### macOS via Homebrew
 
 ```bash
 brew install whisper-cpp
@@ -85,27 +77,69 @@ export PI_WHISPER_COMMAND="$(command -v whisper-cli)"
 export PI_WHISPER_MODEL="$HOME/models/ggml-base.bin"
 ```
 
-### Windows
+### Ubuntu / Debian / WSL via upstream prebuilt binary
 
-Build or download a `whisper.cpp` binary, then set:
+```bash
+mkdir -p "$HOME/.local/opt/whisper.cpp" "$HOME/models"
+cd "$HOME/.local/opt/whisper.cpp"
+curl -LO https://github.com/ggml-org/whisper.cpp/releases/latest/download/whisper-bin-ubuntu-x64.tar.gz
+tar -xzf whisper-bin-ubuntu-x64.tar.gz
+curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin -o "$HOME/models/ggml-base.bin"
+export PI_WHISPER_COMMAND="$HOME/.local/opt/whisper.cpp/build/bin/whisper-cli"
+export PI_WHISPER_MODEL="$HOME/models/ggml-base.bin"
+```
+
+### Windows via upstream prebuilt zip
+
+1. Download `whisper-bin-x64.zip` from the latest `whisper.cpp` release:
+   `https://github.com/ggml-org/whisper.cpp/releases/latest`
+2. Unzip it somewhere like `C:\Tools\whisper.cpp`
+3. Download a model such as `ggml-base.bin` from:
+   `https://huggingface.co/ggerganov/whisper.cpp/tree/main`
+4. Set:
 
 ```powershell
-$env:PI_WHISPER_COMMAND="C:\path\to\whisper-cli.exe"
-$env:PI_WHISPER_MODEL="C:\path\to\ggml-base.bin"
+$env:PI_WHISPER_COMMAND="C:\Tools\whisper.cpp\build\bin\whisper-cli.exe"
+$env:PI_WHISPER_MODEL="C:\Tools\whisper.cpp\models\ggml-base.bin"
 ```
 
 ## Option 2: Python `whisper`
 
-```bash
-python3 -m pip install -U openai-whisper
-whisper --model base sample.wav
-```
+This is the most portable fallback. You also need `ffmpeg`.
 
-Then either let `pi-whisper` auto-detect the cached model, or pin it explicitly:
+### macOS
 
 ```bash
+brew install ffmpeg pipx
+pipx install openai-whisper
 export PI_WHISPER_COMMAND="$(command -v whisper)"
 export PI_WHISPER_MODEL=base
+```
+
+### Ubuntu / Debian / WSL
+
+```bash
+sudo apt update
+sudo apt install -y ffmpeg pipx
+pipx install openai-whisper
+export PI_WHISPER_COMMAND="$HOME/.local/bin/whisper"
+export PI_WHISPER_MODEL=base
+```
+
+### Windows
+
+Install Python and ffmpeg however you prefer, then:
+
+```powershell
+py -m pip install -U openai-whisper
+$env:PI_WHISPER_COMMAND="whisper"
+$env:PI_WHISPER_MODEL="base"
+```
+
+To verify either backend:
+
+```text
+/whisper-status
 ```
 
 ## Configuration
