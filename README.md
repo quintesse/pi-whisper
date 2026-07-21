@@ -56,18 +56,18 @@ Or check detection directly:
 
 ## Backend setup
 
-If you just want the shortest path: install **`whisper.cpp`** if your platform has an easy binary, otherwise install **Python `whisper` with `pipx`**.
+Pick one backend setup. `whisper.cpp` is the recommended default; Python `whisper` is the portable fallback.
 
-### Easiest options by platform
+### Quickest path by platform
 
-- **macOS:** `brew install whisper-cpp`
-- **Ubuntu / Debian / WSL:** download the prebuilt `whisper.cpp` release tarball
-- **Windows:** download the prebuilt `whisper.cpp` zip
-- **Any platform with Python:** `pipx install openai-whisper`
+- **macOS:** use `whisper.cpp` via Homebrew
+- **Ubuntu / Debian / WSL:** use the prebuilt `whisper.cpp` release tarball
+- **Windows:** use the prebuilt `whisper.cpp` zip
+- **Any platform with Python already set up:** use Python `whisper` via `pipx`
 
-## Option 1: `whisper.cpp` recommended
+### `whisper.cpp` setup
 
-### macOS via Homebrew
+#### macOS via Homebrew
 
 ```bash
 brew install whisper-cpp
@@ -77,7 +77,7 @@ export PI_WHISPER_COMMAND="$(command -v whisper-cli)"
 export PI_WHISPER_MODEL="$HOME/models/ggml-base.bin"
 ```
 
-### Ubuntu / Debian / WSL via upstream prebuilt binary
+#### Ubuntu / Debian / WSL via upstream prebuilt binary
 
 ```bash
 mkdir -p "$HOME/.local/opt/whisper.cpp" "$HOME/models"
@@ -89,7 +89,7 @@ export PI_WHISPER_COMMAND="$HOME/.local/opt/whisper.cpp/build/bin/whisper-cli"
 export PI_WHISPER_MODEL="$HOME/models/ggml-base.bin"
 ```
 
-### Windows via upstream prebuilt zip
+#### Windows via upstream prebuilt zip
 
 1. Download `whisper-bin-x64.zip` from the latest `whisper.cpp` release:
    `https://github.com/ggml-org/whisper.cpp/releases/latest`
@@ -103,11 +103,11 @@ $env:PI_WHISPER_COMMAND="C:\Tools\whisper.cpp\build\bin\whisper-cli.exe"
 $env:PI_WHISPER_MODEL="C:\Tools\whisper.cpp\models\ggml-base.bin"
 ```
 
-## Option 2: Python `whisper`
+### Python `whisper` setup
 
 This is the most portable fallback. You also need `ffmpeg`.
 
-### macOS
+#### macOS
 
 ```bash
 brew install ffmpeg pipx
@@ -116,7 +116,7 @@ export PI_WHISPER_COMMAND="$(command -v whisper)"
 export PI_WHISPER_MODEL=base
 ```
 
-### Ubuntu / Debian / WSL
+#### Ubuntu / Debian / WSL
 
 ```bash
 sudo apt update
@@ -126,7 +126,7 @@ export PI_WHISPER_COMMAND="$HOME/.local/bin/whisper"
 export PI_WHISPER_MODEL=base
 ```
 
-### Windows
+#### Windows
 
 Install Python and ffmpeg however you prefer, then:
 
