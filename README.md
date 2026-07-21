@@ -54,6 +54,95 @@ Or check detection directly:
 - `~/models`
 - `~/Models`
 
+## Backend setup
+
+Pick one backend setup. `whisper.cpp` is the recommended default; Python `whisper` is the portable fallback.
+
+### Quickest path by platform
+
+- **macOS:** use `whisper.cpp` via Homebrew
+- **Ubuntu / Debian / WSL:** install the distro `whisper.cpp` package when available
+- **Windows:** use the prebuilt `whisper.cpp` zip
+- **Any platform with Python already set up:** use Python `whisper` via `pipx`
+
+### `whisper.cpp` setup
+
+#### macOS via Homebrew
+
+```bash
+brew install whisper-cpp
+mkdir -p ~/models
+curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin -o ~/models/ggml-base.bin
+export PI_WHISPER_COMMAND="$(command -v whisper-cli)"
+export PI_WHISPER_MODEL="$HOME/models/ggml-base.bin"
+```
+
+#### Ubuntu / Debian / WSL via `apt`
+
+```bash
+sudo apt update
+sudo apt install -y whisper.cpp
+mkdir -p "$HOME/models"
+curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin -o "$HOME/models/ggml-base.bin"
+export PI_WHISPER_COMMAND="$(command -v whisper-cli)"
+export PI_WHISPER_MODEL="$HOME/models/ggml-base.bin"
+```
+
+If your distro does not package `whisper.cpp` yet, fall back to the upstream prebuilt release tarball.
+
+#### Windows via upstream prebuilt zip
+
+1. Download `whisper-bin-x64.zip` from the latest `whisper.cpp` release:
+   `https://github.com/ggml-org/whisper.cpp/releases/latest`
+2. Unzip it somewhere like `C:\Tools\whisper.cpp`
+3. Download a model such as `ggml-base.bin` from:
+   `https://huggingface.co/ggerganov/whisper.cpp/tree/main`
+4. Set:
+
+```powershell
+$env:PI_WHISPER_COMMAND="C:\Tools\whisper.cpp\build\bin\whisper-cli.exe"
+$env:PI_WHISPER_MODEL="C:\Tools\whisper.cpp\models\ggml-base.bin"
+```
+
+### Python `whisper` setup
+
+This is the most portable fallback. You also need `ffmpeg`.
+
+#### macOS
+
+```bash
+brew install ffmpeg pipx
+pipx install openai-whisper
+export PI_WHISPER_COMMAND="$(command -v whisper)"
+export PI_WHISPER_MODEL=base
+```
+
+#### Ubuntu / Debian / WSL
+
+```bash
+sudo apt update
+sudo apt install -y ffmpeg pipx
+pipx install openai-whisper
+export PI_WHISPER_COMMAND="$HOME/.local/bin/whisper"
+export PI_WHISPER_MODEL=base
+```
+
+#### Windows
+
+Install Python and ffmpeg however you prefer, then:
+
+```powershell
+py -m pip install -U openai-whisper
+$env:PI_WHISPER_COMMAND="whisper"
+$env:PI_WHISPER_MODEL="base"
+```
+
+To verify either backend:
+
+```text
+/whisper-status
+```
+
 ## Configuration
 
 Optional environment variables:
