@@ -39,7 +39,7 @@ Or check detection directly:
 Or run a quick transcription smoke test:
 
 ```text
-/whisper-test
+/whisper-transcribe
 ```
 
 ## What it detects
@@ -147,7 +147,7 @@ To verify either backend:
 
 ```text
 /whisper-status
-/whisper-test
+/whisper-transcribe
 ```
 
 ## Configuration

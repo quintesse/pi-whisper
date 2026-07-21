@@ -8,7 +8,7 @@ import { Type } from "typebox";
 const execFileAsync = promisify(execFile);
 const TOOL_NAME = "transcribe_audio";
 const STATUS_COMMAND = "whisper-status";
-const TEST_COMMAND = "whisper-test";
+const TEST_COMMAND = "whisper-transcribe";
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const queueSeed = Promise.resolve();
 let queue = queueSeed;
@@ -328,7 +328,7 @@ async function statusText() {
 async function whisperTestText(cwd, args) {
   const audioPath = args.trim() ? resolveUserPath(cwd, args.trim()) : await findDefaultTestAudio();
   if (!audioPath) {
-    throw new Error("No default test audio found. Pass a file path, e.g. /whisper-test ./sample.wav");
+    throw new Error("No default test audio found. Pass a file path, e.g. /whisper-transcribe ./sample.wav");
   }
   await assertFileExists(audioPath, "Audio file");
 
@@ -342,7 +342,7 @@ async function whisperTestText(cwd, args) {
   ));
 
   return [
-    "whisper test ok",
+    "whisper transcription ok",
     `backend: ${detected.backend}`,
     `audio: ${audioPath}`,
     `transcript: ${(result.text || "(empty transcript)").replace(/\s+/g, " ").trim()}`,
@@ -381,10 +381,10 @@ export default function whisperExtension(pi) {
   });
 
   pi.registerCommand(TEST_COMMAND, {
-    description: "Run a quick local transcription test, optionally with a file path",
+    description: "Run a quick local transcription, optionally with a file path",
     handler: async (args, ctx) => {
       try {
-        ctx.ui.notify("Running whisper test...", "info");
+        ctx.ui.notify("Running whisper transcription...", "info");
         ctx.ui.notify(await whisperTestText(ctx.cwd, args), "info");
       } catch (error) {
         ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
