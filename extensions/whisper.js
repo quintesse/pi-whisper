@@ -10,6 +10,7 @@ const TOOL_NAME = "transcribe_audio";
 const STATUS_COMMAND = "whisper-status";
 const TEST_COMMAND = "whisper-transcribe";
 const MODEL_COMMAND = "whisper-model";
+const BACKEND_COMMAND = "whisper-backend";
 const CONFIG_PATH = join(os.homedir(), ".pi", "agent", "whisper.json");
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const queueSeed = Promise.resolve();
@@ -312,15 +313,26 @@ export function needsConversion(audioPath) {
   return ext !== ".wav";
 }
 
-async function convertToWav(audioPath, outputPath, env) {
+async function convertToWav(audioPath, outputPath) {
+  const ffmpegCmd = await findExecutable([
+    "ffmpeg",
+    join(os.homedir(), ".pi", "agent", "bin", "ffmpeg"),
+    join(os.homedir(), ".local", "bin", "ffmpeg"),
+    join(os.homedir(), ".local", "opt", "ffmpeg-static", "ffmpeg"),
+  ]);
+  
+  if (!ffmpegCmd) {
+    throw new Error("ffmpeg not found. Install ffmpeg to convert non-WAV audio files.");
+  }
+  
   try {
-    await execFileAsync("ffmpeg", [
+    await execFileAsync(ffmpegCmd, [
       "-i", audioPath,
       "-ar", "16000",
       "-ac", "1",
       "-c:a", "pcm_s16le",
       outputPath,
-    ], { env });
+    ]);
   } catch (error) {
     throw new Error(formatBackendFailure("ffmpeg", "convert audio to WAV", error, { audioPath }));
   }
@@ -339,7 +351,7 @@ async function runWhisperCpp(command, modelPath, audioPath, params, defaultThrea
   try {
     if (needsConversion(audioPath)) {
       convertedAudioPath = join(tempDir, "audio.wav");
-      await convertToWav(audioPath, convertedAudioPath, env);
+      await convertToWav(audioPath, convertedAudioPath);
       actualAudioPath = convertedAudioPath;
     }
     
@@ -490,6 +502,169 @@ async function clearSelectedModel() {
   await writeStoredConfig(stored);
 }
 
+
+async function detectBackendType(command) {
+  try {
+    const result = await execFileAsync(command, ["--help"], { timeout: 5000 });
+    const output = result.stdout + result.stderr; // check both stdout and stderr
+    // whisper.cpp uses -m for model, python uses --model
+    // whisper.cpp help mentions "whisper.cpp" or has -m option
+    if (output.includes("whisper.cpp") || /-m\b/i.test(output)) {
+      return "whisper.cpp";
+    }
+    if (output.includes("--model MODEL") || output.includes("openai-whisper")) {
+      return "python-whisper";
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+async function detectAvailableBackends(env = process.env) {
+  const backends = [];
+  const config = await getConfig(env);
+  const seen = new Set();
+  
+  // Collect all possible commands
+  const whisperCppCandidates = [
+    "whisper-cli",
+    "whisper.cpp",
+    "main",
+    join(os.homedir(), "whisper.cpp", "build", "bin", "whisper-cli"),
+    join(os.homedir(), "whisper.cpp", "main"),
+  ];
+  
+  const pythonWhisperCandidates = [
+    "whisper",
+    join(os.homedir(), ".pi", "agent", "bin", "whisper"),
+    join(os.homedir(), ".local", "bin", "whisper"),
+  ];
+  
+  // Add configured command to candidates if it exists
+  if (config.command) {
+    const type = await detectBackendType(config.command);
+    if (type === "whisper.cpp") {
+      whisperCppCandidates.unshift(config.command);
+    } else if (type === "python-whisper") {
+      pythonWhisperCandidates.unshift(config.command);
+    }
+  }
+  
+  // Get all models once
+  const allModels = await findSpeechModels(env);
+  
+  // Find whisper.cpp
+  const whisperCppCmd = await findExecutable(whisperCppCandidates);
+  if (whisperCppCmd && !seen.has(whisperCppCmd)) {
+    seen.add(whisperCppCmd);
+    const models = allModels.filter(m => /\.(bin|gguf)$/i.test(m));
+    backends.push({
+      name: "whisper.cpp",
+      command: whisperCppCmd,
+      models,
+    });
+  }
+  
+  // Find python-whisper
+  const pythonWhisperCmd = await findExecutable(pythonWhisperCandidates);
+  if (pythonWhisperCmd && !seen.has(pythonWhisperCmd)) {
+    seen.add(pythonWhisperCmd);
+    const models = allModels.filter(m => /\.pt$/i.test(m) || !isLikelyPath(m));
+    backends.push({
+      name: "python-whisper",
+      command: pythonWhisperCmd,
+      models,
+    });
+  }
+  
+  return backends;
+}
+
+async function listBackendsText() {
+  const detected = await detectBackend();
+  const currentBackend = detected.error ? null : detected.backend;
+  const currentCommand = detected.error ? null : detected.command;
+  
+  const backends = await detectAvailableBackends();
+  
+  if (backends.length === 0) {
+    return "No Whisper backends found. Ask the agent: 'set up Whisper for me'";
+  }
+  
+  const lines = [];
+  let index = 1;
+  
+  for (const backend of backends) {
+    const isCurrent = backend.name === currentBackend && backend.command === currentCommand;
+    const marker = isCurrent ? "*" : " ";
+    lines.push(`${marker} ${index}. ${backend.name} (${backend.command})`);
+    
+    if (backend.models.length === 0) {
+      lines.push(`     No compatible models found`);
+    } else {
+      const modelList = backend.models.slice(0, 3).map(m => modelLabel(m)).join(", ");
+      const more = backend.models.length > 3 ? ` +${backend.models.length - 3} more` : "";
+      lines.push(`     Models: ${modelList}${more}`);
+    }
+    
+    index++;
+  }
+  
+  return lines.join("\n");
+}
+
+async function selectBackend(backendIndex) {
+  const backends = await detectAvailableBackends();
+  if (backendIndex < 1 || backendIndex > backends.length) {
+    throw new Error(`Backend index out of range: ${backendIndex}`);
+  }
+  
+  const backend = backends[backendIndex - 1];
+  
+  if (backend.models.length === 0) {
+    throw new Error(`${backend.name} has no compatible models. Download a model first.`);
+  }
+  
+  const stored = await readStoredConfig();
+  await writeStoredConfig({
+    ...stored,
+    command: backend.command,
+    model: backend.models[0],
+  });
+  
+  return { backend: backend.name, command: backend.command, model: backend.models[0] };
+}
+
+function whisperBackendUsage() {
+  return [
+    "Usage:",
+    "/whisper-backend list",
+    "/whisper-backend select <number>",
+  ].join("\n");
+}
+
+async function selectBackendText(args) {
+  const [subcommand = "", ...rest] = (args || "").trim().split(/\s+/).filter(Boolean);
+  const value = rest.join(" ");
+
+  if (!subcommand) return whisperBackendUsage();
+  if (subcommand === "list") return listBackendsText();
+  if (subcommand !== "select") throw new Error(whisperBackendUsage());
+
+  if (!value) {
+    throw new Error("Use /whisper-backend select <number>.");
+  }
+
+  const index = Number(value);
+  if (!Number.isInteger(index) || index < 1) {
+    throw new Error("Backend selection requires a number. Use /whisper-backend list to see options.");
+  }
+
+  const result = await selectBackend(index);
+  return `Selected backend: ${result.backend}\nCommand: ${result.command}\nModel: ${result.model}`;
+}
+
 async function whisperTestText(cwd, args) {
   const trimmed = (args || "").trim();
   const audioPath = trimmed ? resolveUserPath(cwd, trimmed) : await findDefaultTestAudio();
@@ -616,6 +791,18 @@ export default function whisperExtension(pi) {
       try {
         const text = await selectModelText(ctx.cwd, args, ctx);
         ctx.ui.notify(text, text.startsWith("No Whisper models") ? "error" : "info");
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
+      }
+    },
+  });
+
+  pi.registerCommand(BACKEND_COMMAND, {
+    description: "List or select the Whisper backend (whisper.cpp or python-whisper)",
+    handler: async (args, ctx) => {
+      try {
+        const text = await selectBackendText(args);
+        ctx.ui.notify(text, text.startsWith("No Whisper backends") ? "error" : "info");
       } catch (error) {
         ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
       }
