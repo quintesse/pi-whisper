@@ -494,13 +494,14 @@ async function clearSelectedModel() {
 
 async function detectBackendType(command) {
   try {
-    const { stdout } = await execFileAsync(command, ["--help"], { timeout: 5000 });
+    const result = await execFileAsync(command, ["--help"], { timeout: 5000 });
+    const output = result.stdout + result.stderr; // check both stdout and stderr
     // whisper.cpp uses -m for model, python uses --model
     // whisper.cpp help mentions "whisper.cpp" or has -m option
-    if (stdout.includes("whisper.cpp") || /-m\b/i.test(stdout)) {
+    if (output.includes("whisper.cpp") || /-m\b/i.test(output)) {
       return "whisper.cpp";
     }
-    if (stdout.includes("--model MODEL") || stdout.includes("openai-whisper")) {
+    if (output.includes("--model MODEL") || output.includes("openai-whisper")) {
       return "python-whisper";
     }
   } catch {
@@ -535,11 +536,14 @@ async function detectAvailableBackends(env = process.env) {
     }
   }
   
+  // Get all models once
+  const allModels = await findSpeechModels(env);
+  
   // Find whisper.cpp
   const whisperCppCmd = await findExecutable(whisperCppCandidates);
   if (whisperCppCmd && !seen.has(whisperCppCmd)) {
     seen.add(whisperCppCmd);
-    const models = (await findSpeechModels(env)).filter(m => /\.(bin|gguf)$/i.test(m));
+    const models = allModels.filter(m => /\.(bin|gguf)$/i.test(m));
     backends.push({
       name: "whisper.cpp",
       command: whisperCppCmd,
@@ -551,7 +555,7 @@ async function detectAvailableBackends(env = process.env) {
   const pythonWhisperCmd = await findExecutable(pythonWhisperCandidates);
   if (pythonWhisperCmd && !seen.has(pythonWhisperCmd)) {
     seen.add(pythonWhisperCmd);
-    const models = (await findSpeechModels(env)).filter(m => /\.pt$/i.test(m) || !isLikelyPath(m));
+    const models = allModels.filter(m => /\.pt$/i.test(m) || !isLikelyPath(m));
     backends.push({
       name: "python-whisper",
       command: pythonWhisperCmd,
