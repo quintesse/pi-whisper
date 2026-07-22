@@ -494,8 +494,10 @@ async function clearSelectedModel() {
 
 async function detectAvailableBackends(env = process.env) {
   const backends = [];
+  const config = await getConfig(env);
   
   const whisperCppCmd = await findExecutable([
+    config.command, // check configured command first
     "whisper-cli",
     "whisper.cpp",
     "main",
@@ -503,7 +505,10 @@ async function detectAvailableBackends(env = process.env) {
     join(os.homedir(), "whisper.cpp", "main"),
   ]);
   
-  const pythonWhisperCmd = await findExecutable(["whisper"]);
+  const pythonWhisperCmd = await findExecutable([
+    config.command, // check configured command first
+    "whisper",
+  ]);
   
   if (whisperCppCmd) {
     const models = (await findSpeechModels(env)).filter(m => /\.(bin|gguf)$/i.test(m));
@@ -514,7 +519,7 @@ async function detectAvailableBackends(env = process.env) {
     });
   }
   
-  if (pythonWhisperCmd) {
+  if (pythonWhisperCmd && pythonWhisperCmd !== whisperCppCmd) {
     const models = (await findSpeechModels(env)).filter(m => /\.pt$/i.test(m) || !isLikelyPath(m));
     backends.push({
       name: "python-whisper",
