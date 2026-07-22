@@ -313,15 +313,26 @@ export function needsConversion(audioPath) {
   return ext !== ".wav";
 }
 
-async function convertToWav(audioPath, outputPath, env) {
+async function convertToWav(audioPath, outputPath) {
+  const ffmpegCmd = await findExecutable([
+    "ffmpeg",
+    join(os.homedir(), ".pi", "agent", "bin", "ffmpeg"),
+    join(os.homedir(), ".local", "bin", "ffmpeg"),
+    join(os.homedir(), ".local", "opt", "ffmpeg-static", "ffmpeg"),
+  ]);
+  
+  if (!ffmpegCmd) {
+    throw new Error("ffmpeg not found. Install ffmpeg to convert non-WAV audio files.");
+  }
+  
   try {
-    await execFileAsync("ffmpeg", [
+    await execFileAsync(ffmpegCmd, [
       "-i", audioPath,
       "-ar", "16000",
       "-ac", "1",
       "-c:a", "pcm_s16le",
       outputPath,
-    ], { env });
+    ]);
   } catch (error) {
     throw new Error(formatBackendFailure("ffmpeg", "convert audio to WAV", error, { audioPath }));
   }
@@ -340,7 +351,7 @@ async function runWhisperCpp(command, modelPath, audioPath, params, defaultThrea
   try {
     if (needsConversion(audioPath)) {
       convertedAudioPath = join(tempDir, "audio.wav");
-      await convertToWav(audioPath, convertedAudioPath, env);
+      await convertToWav(audioPath, convertedAudioPath);
       actualAudioPath = convertedAudioPath;
     }
     
