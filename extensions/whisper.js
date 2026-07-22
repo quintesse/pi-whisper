@@ -117,7 +117,7 @@ export function scoreSpeechModel(modelPath) {
 export function buildWhisperCppArgs({ modelPath, audioPath, outBase, language, translate, timestamps, nThreads }) {
   const args = ["-m", modelPath, "-f", audioPath, "-np", "-of", outBase, "-otxt"];
   if (timestamps) args.push("-osrt");
-  if (language) args.push("-l", language);
+  args.push("-l", language || "auto");
   if (translate) args.push("-tr");
   if (Number.isInteger(nThreads)) args.push("-t", String(nThreads));
   return args;
