@@ -311,6 +311,8 @@ async function runWhisperCpp(command, modelPath, audioPath, params, defaultThrea
   await assertFileExists(modelPath, "Model file");
   const tempDir = await mkdtemp(join(os.tmpdir(), "pi-whisper-"));
   const outBase = join(tempDir, "transcript");
+  const commandDir = dirname(resolve(command));
+  const env = { ...process.env, PATH: `${commandDir}${os.platform() === "win32" ? ";" : ":"}${process.env.PATH || ""}` };
   try {
     try {
       await execFileAsync(command, buildWhisperCppArgs({
@@ -321,7 +323,7 @@ async function runWhisperCpp(command, modelPath, audioPath, params, defaultThrea
         translate: params.translate,
         timestamps: params.timestamps,
         nThreads: params.nThreads ?? defaultThreads,
-      }), { timeout: DEFAULT_TIMEOUT_MS });
+      }), { timeout: DEFAULT_TIMEOUT_MS, env });
     } catch (error) {
       throw new Error(formatBackendFailure("whisper.cpp", "transcribe audio", error, { audioPath, model: modelPath }));
     }
@@ -343,6 +345,8 @@ async function runPythonWhisper(command, model, audioPath, params) {
   if (isLikelyPath(model) && /\.pt$/i.test(model)) await assertFileExists(model, "Model file");
   const tempDir = await mkdtemp(join(os.tmpdir(), "pi-whisper-"));
   const stem = basename(audioPath, extname(audioPath));
+  const commandDir = dirname(resolve(command));
+  const env = { ...process.env, PATH: `${commandDir}${os.platform() === "win32" ? ";" : ":"}${process.env.PATH || ""}` };
   try {
     try {
       await execFileAsync(command, buildPythonWhisperArgs({
@@ -354,7 +358,7 @@ async function runPythonWhisper(command, model, audioPath, params) {
         timestamps: params.timestamps,
         wordTimestamps: params.wordTimestamps,
         prompt: params.prompt,
-      }), { timeout: DEFAULT_TIMEOUT_MS });
+      }), { timeout: DEFAULT_TIMEOUT_MS, env });
     } catch (error) {
       throw new Error(formatBackendFailure("python-whisper", "transcribe audio", error, { audioPath, model }));
     }
