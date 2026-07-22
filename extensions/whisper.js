@@ -492,25 +492,53 @@ async function clearSelectedModel() {
 }
 
 
+async function detectBackendType(command) {
+  try {
+    const { stdout } = await execFileAsync(command, ["--help"], { timeout: 5000 });
+    // whisper.cpp uses -m for model, python uses --model
+    // whisper.cpp help mentions "whisper.cpp"
+    if (stdout.includes("whisper.cpp") || /\s-m\s/i.test(stdout)) {
+      return "whisper.cpp";
+    }
+    if (stdout.includes("--model MODEL") || stdout.includes("openai-whisper")) {
+      return "python-whisper";
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 async function detectAvailableBackends(env = process.env) {
   const backends = [];
   const config = await getConfig(env);
+  const seen = new Set();
   
-  const whisperCppCmd = await findExecutable([
-    config.command, // check configured command first
+  // Collect all possible commands
+  const whisperCppCandidates = [
     "whisper-cli",
     "whisper.cpp",
     "main",
     join(os.homedir(), "whisper.cpp", "build", "bin", "whisper-cli"),
     join(os.homedir(), "whisper.cpp", "main"),
-  ]);
+  ];
   
-  const pythonWhisperCmd = await findExecutable([
-    config.command, // check configured command first
-    "whisper",
-  ]);
+  const pythonWhisperCandidates = ["whisper"];
   
-  if (whisperCppCmd) {
+  // Add configured command to candidates if it exists
+  if (config.command) {
+    const type = await detectBackendType(config.command);
+    if (type === "whisper.cpp") {
+      whisperCppCandidates.unshift(config.command);
+    } else if (type === "python-whisper") {
+      pythonWhisperCandidates.unshift(config.command);
+    }
+  }
+  
+  // Find whisper.cpp
+  const whisperCppCmd = await findExecutable(whisperCppCandidates);
+  if (whisperCppCmd && !seen.has(whisperCppCmd)) {
+    seen.add(whisperCppCmd);
     const models = (await findSpeechModels(env)).filter(m => /\.(bin|gguf)$/i.test(m));
     backends.push({
       name: "whisper.cpp",
@@ -519,7 +547,10 @@ async function detectAvailableBackends(env = process.env) {
     });
   }
   
-  if (pythonWhisperCmd && pythonWhisperCmd !== whisperCppCmd) {
+  // Find python-whisper
+  const pythonWhisperCmd = await findExecutable(pythonWhisperCandidates);
+  if (pythonWhisperCmd && !seen.has(pythonWhisperCmd)) {
+    seen.add(pythonWhisperCmd);
     const models = (await findSpeechModels(env)).filter(m => /\.pt$/i.test(m) || !isLikelyPath(m));
     backends.push({
       name: "python-whisper",
