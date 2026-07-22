@@ -279,23 +279,55 @@ function withQueue(work) {
   return run;
 }
 
+function excerptOutput(text) {
+  const trimmed = (text || "").trim();
+  if (!trimmed) return "";
+  return trimmed.length > 400 ? `${trimmed.slice(0, 400)}...` : trimmed;
+}
+
+export function formatBackendFailure(backend, action, error, extra = {}) {
+  const parts = [`${backend} failed to ${action}`];
+  if (extra.audioPath) parts.push(`audio: ${extra.audioPath}`);
+  if (extra.model) parts.push(`model: ${extra.model}`);
+  if (error?.code != null) parts.push(`code: ${error.code}`);
+  if (error?.signal) parts.push(`signal: ${error.signal}`);
+  const stderr = excerptOutput(error?.stderr);
+  const stdout = excerptOutput(error?.stdout);
+  if (stderr) parts.push(`stderr: ${stderr}`);
+  else if (stdout) parts.push(`stdout: ${stdout}`);
+  else if (error?.message) parts.push(`error: ${error.message}`);
+  return parts.join(" | ");
+}
+
+async function readRequiredTextFile(filePath, backend, audioPath, model) {
+  try {
+    return (await readFile(filePath, "utf8")).trim();
+  } catch (error) {
+    throw new Error(formatBackendFailure(backend, `write transcript output (${basename(filePath)})`, error, { audioPath, model }));
+  }
+}
+
 async function runWhisperCpp(command, modelPath, audioPath, params, defaultThreads) {
   await assertFileExists(modelPath, "Model file");
   const tempDir = await mkdtemp(join(os.tmpdir(), "pi-whisper-"));
   const outBase = join(tempDir, "transcript");
   try {
-    await execFileAsync(command, buildWhisperCppArgs({
-      modelPath,
-      audioPath,
-      outBase,
-      language: params.language,
-      translate: params.translate,
-      timestamps: params.timestamps,
-      nThreads: params.nThreads ?? defaultThreads,
-    }), { timeout: DEFAULT_TIMEOUT_MS });
+    try {
+      await execFileAsync(command, buildWhisperCppArgs({
+        modelPath,
+        audioPath,
+        outBase,
+        language: params.language,
+        translate: params.translate,
+        timestamps: params.timestamps,
+        nThreads: params.nThreads ?? defaultThreads,
+      }), { timeout: DEFAULT_TIMEOUT_MS });
+    } catch (error) {
+      throw new Error(formatBackendFailure("whisper.cpp", "transcribe audio", error, { audioPath, model: modelPath }));
+    }
 
     return {
-      text: (await readFile(`${outBase}.txt`, "utf8")).trim(),
+      text: await readRequiredTextFile(`${outBase}.txt`, "whisper.cpp", audioPath, modelPath),
       timestampText: params.timestamps ? (await readFile(`${outBase}.srt`, "utf8").catch(() => "")).trim() : "",
       details: {
         backend: "whisper.cpp",
@@ -312,19 +344,23 @@ async function runPythonWhisper(command, model, audioPath, params) {
   const tempDir = await mkdtemp(join(os.tmpdir(), "pi-whisper-"));
   const stem = basename(audioPath, extname(audioPath));
   try {
-    await execFileAsync(command, buildPythonWhisperArgs({
-      model,
-      audioPath,
-      outputDir: tempDir,
-      language: params.language,
-      translate: params.translate,
-      timestamps: params.timestamps,
-      wordTimestamps: params.wordTimestamps,
-      prompt: params.prompt,
-    }), { timeout: DEFAULT_TIMEOUT_MS });
+    try {
+      await execFileAsync(command, buildPythonWhisperArgs({
+        model,
+        audioPath,
+        outputDir: tempDir,
+        language: params.language,
+        translate: params.translate,
+        timestamps: params.timestamps,
+        wordTimestamps: params.wordTimestamps,
+        prompt: params.prompt,
+      }), { timeout: DEFAULT_TIMEOUT_MS });
+    } catch (error) {
+      throw new Error(formatBackendFailure("python-whisper", "transcribe audio", error, { audioPath, model }));
+    }
 
     return {
-      text: (await readFile(join(tempDir, `${stem}.txt`), "utf8")).trim(),
+      text: await readRequiredTextFile(join(tempDir, `${stem}.txt`), "python-whisper", audioPath, model),
       timestampText: params.timestamps ? (await readFile(join(tempDir, `${stem}.srt`), "utf8").catch(() => "")).trim() : "",
       details: {
         backend: "python-whisper",
