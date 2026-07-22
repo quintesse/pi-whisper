@@ -555,6 +555,7 @@ async function detectAvailableBackends(env = process.env) {
     });
   }
   
+  console.log(`[whisper-backend] About to search for python-whisper...`);
   // Find python-whisper
   const pythonWhisperCmd = await findExecutable(pythonWhisperCandidates);
   console.log(`[whisper-backend] python-whisper command:`, pythonWhisperCmd);
