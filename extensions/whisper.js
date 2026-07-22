@@ -533,7 +533,6 @@ async function detectAvailableBackends(env = process.env) {
   // Add configured command to candidates if it exists
   if (config.command) {
     const type = await detectBackendType(config.command);
-    console.log(`[whisper-backend] Configured command ${config.command} detected as: ${type}`);
     if (type === "whisper.cpp") {
       whisperCppCandidates.unshift(config.command);
     } else if (type === "python-whisper") {
@@ -543,15 +542,12 @@ async function detectAvailableBackends(env = process.env) {
   
   // Get all models once
   const allModels = await findSpeechModels(env);
-  console.log(`[whisper-backend] Found ${allModels.length} total models:`, allModels);
   
   // Find whisper.cpp
   const whisperCppCmd = await findExecutable(whisperCppCandidates);
-  console.log(`[whisper-backend] whisper.cpp command:`, whisperCppCmd);
   if (whisperCppCmd && !seen.has(whisperCppCmd)) {
     seen.add(whisperCppCmd);
     const models = allModels.filter(m => /\.(bin|gguf)$/i.test(m));
-    console.log(`[whisper-backend] whisper.cpp models:`, models);
     backends.push({
       name: "whisper.cpp",
       command: whisperCppCmd,
@@ -559,20 +555,11 @@ async function detectAvailableBackends(env = process.env) {
     });
   }
   
-  console.log(`[whisper-backend] About to search for python-whisper...`);
   // Find python-whisper
-  let pythonWhisperCmd;
-  try {
-    pythonWhisperCmd = await findExecutable(pythonWhisperCandidates);
-    console.log(`[whisper-backend] python-whisper command:`, pythonWhisperCmd);
-  } catch (error) {
-    console.log(`[whisper-backend] Error finding python-whisper:`, error);
-  }
-  console.log(`[whisper-backend] Already in seen set:`, seen.has(pythonWhisperCmd));
+  const pythonWhisperCmd = await findExecutable(pythonWhisperCandidates);
   if (pythonWhisperCmd && !seen.has(pythonWhisperCmd)) {
     seen.add(pythonWhisperCmd);
     const models = allModels.filter(m => /\.pt$/i.test(m) || !isLikelyPath(m));
-    console.log(`[whisper-backend] python-whisper models:`, models);
     backends.push({
       name: "python-whisper",
       command: pythonWhisperCmd,
@@ -580,48 +567,40 @@ async function detectAvailableBackends(env = process.env) {
     });
   }
   
-  console.log(`[whisper-backend] About to return ${backends.length} backends`);
-  for (const b of backends) {
-    console.log(`[whisper-backend]   - ${b.name}: ${b.command}`);
-  }
   return backends;
 }
 
 async function listBackendsText() {
-  try {
-    const detected = await detectBackend();
-    const currentBackend = detected.error ? null : detected.backend;
-    const currentCommand = detected.error ? null : detected.command;
-    
-    const backends = await detectAvailableBackends();
-    
-    if (backends.length === 0) {
-      return "No Whisper backends found. Ask the agent: 'set up Whisper for me'";
-    }
-    
-    const lines = [];
-    let index = 1;
-    
-    for (const backend of backends) {
-      const isCurrent = backend.name === currentBackend && backend.command === currentCommand;
-      const marker = isCurrent ? "*" : " ";
-      lines.push(`${marker} ${index}. ${backend.name} (${backend.command})`);
-      
-      if (backend.models.length === 0) {
-        lines.push(`     No compatible models found`);
-      } else {
-        const modelList = backend.models.slice(0, 3).map(m => modelLabel(m)).join(", ");
-        const more = backend.models.length > 3 ? ` +${backend.models.length - 3} more` : "";
-        lines.push(`     Models: ${modelList}${more}`);
-      }
-      
-      index++;
-    }
-    
-    return lines.join("\n");
-  } catch (error) {
-    return `Error listing backends: ${error.message}\n${error.stack}`;
+  const detected = await detectBackend();
+  const currentBackend = detected.error ? null : detected.backend;
+  const currentCommand = detected.error ? null : detected.command;
+  
+  const backends = await detectAvailableBackends();
+  
+  if (backends.length === 0) {
+    return "No Whisper backends found. Ask the agent: 'set up Whisper for me'";
   }
+  
+  const lines = [];
+  let index = 1;
+  
+  for (const backend of backends) {
+    const isCurrent = backend.name === currentBackend && backend.command === currentCommand;
+    const marker = isCurrent ? "*" : " ";
+    lines.push(`${marker} ${index}. ${backend.name} (${backend.command})`);
+    
+    if (backend.models.length === 0) {
+      lines.push(`     No compatible models found`);
+    } else {
+      const modelList = backend.models.slice(0, 3).map(m => modelLabel(m)).join(", ");
+      const more = backend.models.length > 3 ? ` +${backend.models.length - 3} more` : "";
+      lines.push(`     Models: ${modelList}${more}`);
+    }
+    
+    index++;
+  }
+  
+  return lines.join("\n");
 }
 
 async function selectBackend(backendIndex) {
