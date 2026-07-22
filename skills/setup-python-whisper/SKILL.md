@@ -1,45 +1,240 @@
-# Setup Python Whisper Backend
+---
+name: setup-whisper
+description: Automatically install and configure Whisper (whisper.cpp or Python) for local audio transcription. Detects platform, recommends best option, guides installation of chosen backend. Use when no Whisper backend exists, /whisper-status shows nothing found, or user requests Whisper setup.
+license: MIT
+---
 
-Install Python-based OpenAI Whisper as the transcription backend for pi-whisper.
+# Setup Whisper Backend
+
+Install and configure a local Whisper transcription backend for pi-whisper.
 
 ## When to use this skill
 
 - User says: "set up Whisper", "install Whisper", "configure Whisper backend", "I need Whisper to work"
 - `/whisper-status` reports "No Whisper backend found"
-- User wants local transcription without compiling C++ code
+- User wants local transcription
 
-## What this installs
+## Workflow
 
-- **uv**: Fast Python package installer
-- **openai-whisper**: Local speech-to-text model (Python implementation)
-- **ffmpeg**: Audio conversion (static binary, no system packages needed)
-- Symlinks in `~/.pi/agent/bin` so Pi can find them
-- Config file `~/.pi/agent/whisper.json` pointing to the Python backend
+1. **Detect platform and existing tools**
+2. **Recommend best option** (whisper.cpp or Python whisper)
+3. **Let user choose**
+4. **Guide installation**
 
-## Installation steps
+## Step 1: Detection
 
-### 1. Install uv
+Run these checks:
 
 ```bash
+# Platform
+uname -s  # Linux, Darwin (macOS), or MINGW*/MSYS* (Windows)
+
+# Package managers
+command -v brew       # macOS Homebrew
+command -v apt        # Debian/Ubuntu
+command -v pipx       # Python tool installer
+command -v python3    # Python
+command -v ffmpeg     # Audio converter
+```
+
+## Step 2: Recommendation
+
+**Priority: use what's already installed.**
+
+### Recommend **Python whisper** when:
+- `python3` or `pipx` already installed
+- **Fewer new dependencies = faster setup**
+- Most portable, works everywhere
+
+### Recommend **whisper.cpp** when:
+- No Python installed
+- macOS with Homebrew / Ubuntu with apt available
+- User specifically wants the faster C++ backend
+
+### Present both options clearly
+Ask: "I recommend [X] (uses existing tools), but you can choose either. Which do you want?"
+
+## Step 3: Installation Paths
+
+### Option A: whisper.cpp
+
+#### macOS via Homebrew
+
+```bash
+# Install whisper.cpp
+brew install whisper-cpp
+
+# Download base model
+mkdir -p ~/models
+curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin -o ~/models/ggml-base.bin
+
+# Configure Pi
+cat > ~/.pi/agent/whisper.json <<EOF
+{
+  "command": "$(command -v whisper-cli)",
+  "model": "$HOME/models/ggml-base.bin"
+}
+EOF
+
+# Test
+/reload
+/whisper-status
+```
+
+#### Ubuntu/Debian via apt
+
+```bash
+# Install whisper.cpp and ffmpeg
+sudo apt update
+sudo apt install -y whisper.cpp ffmpeg
+
+# Download base model
+mkdir -p ~/models
+curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin -o ~/models/ggml-base.bin
+
+# Configure Pi
+cat > ~/.pi/agent/whisper.json <<EOF
+{
+  "command": "$(command -v whisper-cli)",
+  "model": "$HOME/models/ggml-base.bin"
+}
+EOF
+
+# Test
+/reload
+/whisper-status
+```
+
+#### Windows via prebuilt release
+
+```powershell
+# Download latest whisper-bin-x64.zip from
+# https://github.com/ggml-org/whisper.cpp/releases/latest
+# Unzip to C:\Tools\whisper.cpp
+
+# Download model
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\models"
+Invoke-WebRequest -Uri "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin" -OutFile "$env:USERPROFILE\models\ggml-base.bin"
+
+# Configure Pi
+@"
+{
+  "command": "C:\\Tools\\whisper.cpp\\build\\bin\\whisper-cli.exe",
+  "model": "$env:USERPROFILE\\models\\ggml-base.bin"
+}
+"@ | Out-File -FilePath "$env:USERPROFILE\.pi\agent\whisper.json" -Encoding utf8
+
+# Test
+/reload
+/whisper-status
+```
+
+#### Linux/WSL via prebuilt tarball
+
+If your distro doesn't package whisper.cpp yet:
+
+```bash
+# Download latest from https://github.com/ggml-org/whisper.cpp/releases/latest
+# Look for whisper-bin-Linux.tar.gz or similar
+
+mkdir -p ~/.local/opt
+cd ~/.local/opt
+# Extract tarball here, adjust path as needed
+# tar -xzf whisper-bin-Linux.tar.gz
+
+# Download model
+mkdir -p ~/models
+curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin -o ~/models/ggml-base.bin
+
+# Configure (adjust path to whisper-cli)
+cat > ~/.pi/agent/whisper.json <<EOF
+{
+  "command": "$HOME/.local/opt/whisper.cpp/whisper-cli",
+  "model": "$HOME/models/ggml-base.bin"
+}
+EOF
+```
+
+### Option B: Python whisper
+
+#### macOS
+
+```bash
+# Install ffmpeg and pipx
+brew install ffmpeg pipx
+
+# Install openai-whisper
+pipx install openai-whisper
+
+# Configure Pi
+cat > ~/.pi/agent/whisper.json <<EOF
+{
+  "command": "$(command -v whisper)",
+  "model": "base"
+}
+EOF
+
+# Test
+/reload
+/whisper-status
+```
+
+#### Ubuntu/Debian/WSL
+
+```bash
+# Install ffmpeg and pipx
+sudo apt update
+sudo apt install -y ffmpeg pipx
+
+# Install openai-whisper
+pipx install openai-whisper
+
+# Configure Pi
+cat > ~/.pi/agent/whisper.json <<EOF
+{
+  "command": "$HOME/.local/bin/whisper",
+  "model": "base"
+}
+EOF
+
+# Test
+/reload
+/whisper-status
+```
+
+#### Windows
+
+```powershell
+# Install Python and ffmpeg first (via official installers or chocolatey)
+
+# Install openai-whisper
+py -m pip install -U openai-whisper
+
+# Configure Pi
+@"
+{
+  "command": "whisper",
+  "model": "base"
+}
+"@ | Out-File -FilePath "$env:USERPROFILE\.pi\agent\whisper.json" -Encoding utf8
+
+# Test
+/reload
+/whisper-status
+```
+
+#### Portable install without system packages (Linux/WSL/macOS)
+
+Uses `uv` to avoid system Python pollution:
+
+```bash
+# Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
-```
 
-This installs `uv` to `~/.local/bin/uv`.
-
-### 2. Install openai-whisper with Python 3.12
-
-```bash
+# Install openai-whisper with managed Python
 ~/.local/bin/uv tool install --python 3.12 openai-whisper
-```
 
-This:
-- Downloads Python 3.12 (managed by uv, no system pollution)
-- Installs `openai-whisper` and its dependencies
-- Creates `~/.local/bin/whisper` command
-
-### 3. Install static ffmpeg
-
-```bash
+# Install static ffmpeg (Linux/WSL only)
 mkdir -p ~/.local/opt ~/.local/bin
 cd ~/.local/opt
 curl -L -o ffmpeg-release-amd64-static.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
@@ -47,115 +242,100 @@ mkdir -p ffmpeg-static
 tar -xJf ffmpeg-release-amd64-static.tar.xz -C ffmpeg-static --strip-components=1
 ln -sf ~/.local/opt/ffmpeg-static/ffmpeg ~/.local/bin/ffmpeg
 ln -sf ~/.local/opt/ffmpeg-static/ffprobe ~/.local/bin/ffprobe
-```
 
-Verify:
-```bash
-~/.local/bin/ffmpeg -version
-```
+# For macOS: brew install ffmpeg instead
 
-### 4. Create symlinks in ~/.pi/agent/bin
-
-This ensures Pi's subprocess environment can find the tools:
-
-```bash
-mkdir -p ~/.pi/agent/bin
-ln -sf ~/.local/bin/whisper ~/.pi/agent/bin/whisper
-ln -sf ~/.local/bin/ffmpeg ~/.pi/agent/bin/ffmpeg
-ln -sf ~/.local/bin/ffprobe ~/.pi/agent/bin/ffprobe
-```
-
-### 5. Write config file
-
-```bash
-cat > ~/.pi/agent/whisper.json <<'EOF'
+# Configure Pi
+cat > ~/.pi/agent/whisper.json <<EOF
 {
-  "command": "/home/$USER/.pi/agent/bin/whisper",
+  "command": "$HOME/.local/bin/whisper",
   "model": "base"
 }
 EOF
+
+# Test
+/reload
+/whisper-status
 ```
 
-Replace `$USER` with the actual username, or use the full path directly.
+## Step 4: Verification
 
-### 6. Test the installation
-
-```bash
-PATH="~/.pi/agent/bin:$PATH" ~/.pi/agent/bin/whisper --model base <some-audio-file.wav> --output_format txt --output_dir /tmp/whisper-test
-```
-
-First run will download the base model (~150MB) to `~/.cache/whisper/base.pt`.
-
-### 7. Verify in Pi
+After installation:
 
 ```text
 /reload
 /whisper-status
 ```
 
-Should show:
-```
-backend: python-whisper | command: /home/<user>/.pi/agent/bin/whisper | model: base (env)
-```
+Should show detected backend and model.
 
-Then test transcription:
+Test transcription:
 ```text
-/whisper-transcribe <path-to-audio-file>
+/whisper-transcribe
 ```
 
-## Model selection
+## Model management
 
-After setup, list and select models:
+After setup, manage models:
 
 ```text
-/whisper-model list
-/whisper-model select <number-or-path>
+/whisper-model list               # List detected models
+/whisper-model select             # Interactive selection
+/whisper-model select 2           # Select by number
+/whisper-model select /path/to/model
+/whisper-model clear              # Reset to auto-detect
 ```
 
-Or edit `~/.pi/agent/whisper.json` to use a model name (`tiny`, `base`, `small`, `medium`, `large`) or a `.pt` file path.
+### Model sizes and quality
+
+| Model | Size (whisper.cpp) | Size (Python) | Quality |
+|-------|-------------------|---------------|---------|
+| tiny  | ~75 MB            | ~75 MB        | Fast, basic accuracy |
+| base  | ~150 MB           | ~150 MB       | Good balance (recommended) |
+| small | ~500 MB           | ~500 MB       | Better accuracy |
+| medium | ~1.5 GB          | ~1.5 GB       | High accuracy |
+| large | ~3 GB             | ~3 GB         | Best accuracy, slowest |
+
+Download additional models:
+
+**whisper.cpp:**
+```bash
+curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin -o ~/models/ggml-small.bin
+```
+
+**Python whisper:** Models auto-download on first use when you specify the name (e.g., `"model": "small"`).
 
 ## Troubleshooting
 
-**"No such file or directory: 'ffmpeg'"**
-- Ensure symlinks in `~/.pi/agent/bin` exist
-- Verify ffmpeg works: `~/.pi/agent/bin/ffmpeg -version`
+### "No Whisper backend found"
+- Check `~/.pi/agent/whisper.json` exists
+- Verify the command path is correct: `cat ~/.pi/agent/whisper.json`
+- Test the command directly: `whisper-cli --help` or `whisper --help`
+- Run `/whisper-status` for diagnostics
 
-**"ENOENT: no such file or directory, open '/tmp/pi-whisper-xxxxx/file.txt'"**
-- Old error from before the PATH fix
-- Run `/reload` to pick up the latest pi-whisper code
+### whisper.cpp: "No such file or directory: 'ffmpeg'"
+- Install ffmpeg: `brew install ffmpeg` or `sudo apt install ffmpeg`
+- whisper.cpp needs ffmpeg for non-WAV audio formats
 
-**"No Whisper backend found"**
-- Check `~/.pi/agent/whisper.json` exists and has correct paths
-- Verify `~/.pi/agent/bin/whisper` is executable
-- Run `/whisper-status` for diagnostic details
+### Python whisper: slow first run
+- First transcription downloads the model (~150MB for base)
+- Cached in `~/.cache/whisper/` for subsequent runs
+
+### Wrong model loaded
+- Use `/whisper-model list` and `/whisper-model select`
+- Or edit `~/.pi/agent/whisper.json` directly
 
 ## Notes
 
-- This uses **local** transcription — no API calls, no API keys, no cost per transcription
-- Models are cached in `~/.cache/whisper/` after first download
-- The `base` model is ~150MB; larger models (up to ~3GB for `large`) offer better accuracy
-- CPU transcription is slow; GPU support requires PyTorch with CUDA (not covered here)
+- **whisper.cpp is faster** and recommended when available
+- **Python whisper is more portable** across platforms
+- Both use **local models**, no API calls, no cost per transcription
+- Models are reusable between backends (with format conversion)
+- First transcription may be slow while downloading the model
+- CPU transcription works but is slow; GPU support varies by platform
 
-## Platform notes
+## References
 
-- **Linux/WSL**: Instructions above work as-is
-- **macOS**: Same, but ffmpeg URL may differ (use homebrew or johnvansickle's macOS build)
-- **Windows**: Use WSL or adjust paths for Windows (backslashes, different ffmpeg source)
-
-## Alternative: whisper.cpp
-
-If you prefer a C++ backend:
-
-```bash
-# Debian/Ubuntu
-sudo apt install whisper.cpp
-
-# Download model
-mkdir -p ~/models
-curl -L -o ~/models/ggml-base.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
-
-# Configure
-echo '{"command": "whisper-cli", "model": "~/models/ggml-base.bin"}' > ~/.pi/agent/whisper.json
-```
-
-See the main README for more details.
+- [pi-whisper README](../../../README.md)
+- [whisper.cpp](https://github.com/ggml-org/whisper.cpp)
+- [openai-whisper](https://github.com/openai/whisper)
