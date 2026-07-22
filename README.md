@@ -24,6 +24,22 @@ Reload Pi:
 /reload
 ```
 
+## Quick setup
+
+### Option 1: Ask Pi to set it up for you
+
+If you have no Whisper backend installed yet:
+
+```text
+Set up Whisper for me
+```
+
+Pi will use the bundled skill to install Python Whisper, ffmpeg, and configure everything automatically.
+
+### Option 2: Manual backend setup
+
+See the [Backend setup](#backend-setup) section below for manual installation instructions.
+
 ## Usage
 
 Ask Pi something like:
