@@ -666,20 +666,22 @@ async function selectBackendText(args) {
 }
 
 async function whisperTestText(cwd, args) {
-  const trimmed = (args || "").trim();
-  const audioPath = trimmed ? resolveUserPath(cwd, trimmed) : await findDefaultTestAudio();
+  const parts = (args || "").trim().split(/\s+/);
+  const [pathArg, language] = parts;
+  const audioPath = pathArg ? resolveUserPath(cwd, pathArg) : await findDefaultTestAudio();
   if (!audioPath) {
-    throw new Error("No default test audio found. Pass a file path, e.g. /whisper-transcribe ./sample.wav");
+    throw new Error("No default test audio found. Pass a file path, e.g. /whisper-transcribe ./sample.wav [language]");
   }
   await assertFileExists(audioPath, "Audio file");
 
   const detected = await detectBackend();
   if (detected.error) throw new Error(detected.error);
 
+  const params = language ? { language } : {};
   const result = await withQueue(async () => (
     detected.backend === "whisper.cpp"
-      ? runWhisperCpp(detected.command, detected.model, audioPath, {}, detected.nThreads)
-      : runPythonWhisper(detected.command, detected.model, audioPath, {})
+      ? runWhisperCpp(detected.command, detected.model, audioPath, params, detected.nThreads)
+      : runPythonWhisper(detected.command, detected.model, audioPath, params)
   ));
 
   return [
@@ -774,7 +776,7 @@ export default function whisperExtension(pi) {
   });
 
   pi.registerCommand(TEST_COMMAND, {
-    description: "Run a quick local transcription, optionally with a file path",
+    description: "Run a quick local transcription, optionally with a file path and language code (e.g., /whisper-transcribe file.ogg es)",
     handler: async (args, ctx) => {
       try {
         ctx.ui.notify("Running whisper transcription...", "info");
