@@ -557,8 +557,13 @@ async function detectAvailableBackends(env = process.env) {
   
   console.log(`[whisper-backend] About to search for python-whisper...`);
   // Find python-whisper
-  const pythonWhisperCmd = await findExecutable(pythonWhisperCandidates);
-  console.log(`[whisper-backend] python-whisper command:`, pythonWhisperCmd);
+  let pythonWhisperCmd;
+  try {
+    pythonWhisperCmd = await findExecutable(pythonWhisperCandidates);
+    console.log(`[whisper-backend] python-whisper command:`, pythonWhisperCmd);
+  } catch (error) {
+    console.log(`[whisper-backend] Error finding python-whisper:`, error);
+  }
   console.log(`[whisper-backend] Already in seen set:`, seen.has(pythonWhisperCmd));
   if (pythonWhisperCmd && !seen.has(pythonWhisperCmd)) {
     seen.add(pythonWhisperCmd);
