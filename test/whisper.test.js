@@ -4,6 +4,7 @@ import {
   backendForModel,
   buildPythonWhisperArgs,
   buildWhisperCppArgs,
+  formatBackendFailure,
   readConfig,
   resolveUserPath,
   scoreSpeechModel,
@@ -79,4 +80,19 @@ test("buildPythonWhisperArgs uses model name and writes outputs", () => {
     "--word_timestamps", "True",
     "--initial_prompt", "names are Alice and Bob",
   ]);
+});
+
+test("formatBackendFailure includes stderr context", () => {
+  const message = formatBackendFailure("whisper.cpp", "transcribe audio", {
+    code: 1,
+    stderr: "failed to read audio file",
+  }, {
+    audioPath: "/tmp/audio.ogg",
+    model: "/models/ggml-base.bin",
+  });
+
+  assert.match(message, /whisper\.cpp failed to transcribe audio/);
+  assert.match(message, /audio: \/tmp\/audio\.ogg/);
+  assert.match(message, /model: \/models\/ggml-base\.bin/);
+  assert.match(message, /stderr: failed to read audio file/);
 });
