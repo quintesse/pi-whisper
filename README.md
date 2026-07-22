@@ -95,6 +95,12 @@ Pick one backend setup. `whisper.cpp` is the recommended default; Python `whispe
 - **Windows:** use the prebuilt `whisper.cpp` zip
 - **Any platform with Python already set up:** use Python `whisper` via `pipx`
 
+### Audio format support
+
+**whisper.cpp**: Automatically converts non-WAV audio (MP3, OGG, FLAC, etc.) to WAV using `ffmpeg` before transcription. If `ffmpeg` is not found, only WAV files will work.
+
+**Python whisper**: Uses `ffmpeg` internally for all audio formats. Install `ffmpeg` first for full format support.
+
 ### `whisper.cpp` setup
 
 #### macOS via Homebrew
