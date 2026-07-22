@@ -226,7 +226,7 @@ async function findSpeechModel(env = process.env) {
 
   const models = await findSpeechModels(env);
   if (models[0]) return { model: models[0], source: "auto" };
-  return { error: "No Whisper model found. Use /whisper-model to pick one, or put a model in a common cache directory." };
+  return { error: "No Whisper model found. Ask the agent: 'set up Whisper for me' or use /whisper-model to select one." };
 }
 
 async function detectBackend(env = process.env) {
@@ -255,8 +255,8 @@ async function detectBackend(env = process.env) {
     return {
       error:
         backend === "whisper.cpp"
-          ? "No whisper.cpp executable found. Set PI_WHISPER_COMMAND or install whisper-cli."
-          : "No Python whisper executable found. Set PI_WHISPER_COMMAND or install the whisper CLI.",
+          ? "No whisper.cpp executable found. Ask the agent: 'set up Whisper for me' or set PI_WHISPER_COMMAND."
+          : "No Python whisper executable found. Ask the agent: 'set up Whisper for me' or set PI_WHISPER_COMMAND.",
       model,
       backend,
     };
