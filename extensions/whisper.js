@@ -529,6 +529,7 @@ async function detectAvailableBackends(env = process.env) {
   // Add configured command to candidates if it exists
   if (config.command) {
     const type = await detectBackendType(config.command);
+    console.log(`[whisper-backend] Configured command ${config.command} detected as: ${type}`);
     if (type === "whisper.cpp") {
       whisperCppCandidates.unshift(config.command);
     } else if (type === "python-whisper") {
@@ -538,12 +539,15 @@ async function detectAvailableBackends(env = process.env) {
   
   // Get all models once
   const allModels = await findSpeechModels(env);
+  console.log(`[whisper-backend] Found ${allModels.length} total models:`, allModels);
   
   // Find whisper.cpp
   const whisperCppCmd = await findExecutable(whisperCppCandidates);
+  console.log(`[whisper-backend] whisper.cpp command:`, whisperCppCmd);
   if (whisperCppCmd && !seen.has(whisperCppCmd)) {
     seen.add(whisperCppCmd);
     const models = allModels.filter(m => /\.(bin|gguf)$/i.test(m));
+    console.log(`[whisper-backend] whisper.cpp models:`, models);
     backends.push({
       name: "whisper.cpp",
       command: whisperCppCmd,
@@ -553,9 +557,12 @@ async function detectAvailableBackends(env = process.env) {
   
   // Find python-whisper
   const pythonWhisperCmd = await findExecutable(pythonWhisperCandidates);
+  console.log(`[whisper-backend] python-whisper command:`, pythonWhisperCmd);
+  console.log(`[whisper-backend] Already in seen set:`, seen.has(pythonWhisperCmd));
   if (pythonWhisperCmd && !seen.has(pythonWhisperCmd)) {
     seen.add(pythonWhisperCmd);
     const models = allModels.filter(m => /\.pt$/i.test(m) || !isLikelyPath(m));
+    console.log(`[whisper-backend] python-whisper models:`, models);
     backends.push({
       name: "python-whisper",
       command: pythonWhisperCmd,
@@ -563,6 +570,7 @@ async function detectAvailableBackends(env = process.env) {
     });
   }
   
+  console.log(`[whisper-backend] Returning ${backends.length} backends`);
   return backends;
 }
 
