@@ -524,7 +524,11 @@ async function detectAvailableBackends(env = process.env) {
     join(os.homedir(), "whisper.cpp", "main"),
   ];
   
-  const pythonWhisperCandidates = ["whisper"];
+  const pythonWhisperCandidates = [
+    "whisper",
+    join(os.homedir(), ".pi", "agent", "bin", "whisper"),
+    join(os.homedir(), ".local", "bin", "whisper"),
+  ];
   
   // Add configured command to candidates if it exists
   if (config.command) {
