@@ -576,7 +576,10 @@ async function detectAvailableBackends(env = process.env) {
     });
   }
   
-  console.log(`[whisper-backend] Returning ${backends.length} backends`);
+  console.log(`[whisper-backend] About to return ${backends.length} backends`);
+  for (const b of backends) {
+    console.log(`[whisper-backend]   - ${b.name}: ${b.command}`);
+  }
   return backends;
 }
 
