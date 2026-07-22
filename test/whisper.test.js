@@ -5,6 +5,7 @@ import {
   buildPythonWhisperArgs,
   buildWhisperCppArgs,
   formatBackendFailure,
+  needsConversion,
   readConfig,
   resolveUserPath,
   scoreSpeechModel,
@@ -95,4 +96,12 @@ test("formatBackendFailure includes stderr context", () => {
   assert.match(message, /audio: \/tmp\/audio\.ogg/);
   assert.match(message, /model: \/models\/ggml-base\.bin/);
   assert.match(message, /stderr: failed to read audio file/);
+});
+
+test("needsConversion detects non-WAV files", () => {
+  assert.strictEqual(needsConversion("/path/to/audio.wav"), false);
+  assert.strictEqual(needsConversion("/path/to/audio.WAV"), false);
+  assert.strictEqual(needsConversion("/path/to/audio.ogg"), true);
+  assert.strictEqual(needsConversion("/path/to/audio.mp3"), true);
+  assert.strictEqual(needsConversion("/path/to/audio.flac"), true);
 });

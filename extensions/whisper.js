@@ -307,17 +307,46 @@ async function readRequiredTextFile(filePath, backend, audioPath, model) {
   }
 }
 
+export function needsConversion(audioPath) {
+  const ext = extname(audioPath).toLowerCase();
+  return ext !== ".wav";
+}
+
+async function convertToWav(audioPath, outputPath, env) {
+  try {
+    await execFileAsync("ffmpeg", [
+      "-i", audioPath,
+      "-ar", "16000",
+      "-ac", "1",
+      "-c:a", "pcm_s16le",
+      outputPath,
+    ], { env });
+  } catch (error) {
+    throw new Error(formatBackendFailure("ffmpeg", "convert audio to WAV", error, { audioPath }));
+  }
+}
+
 async function runWhisperCpp(command, modelPath, audioPath, params, defaultThreads) {
   await assertFileExists(modelPath, "Model file");
   const tempDir = await mkdtemp(join(os.tmpdir(), "pi-whisper-"));
   const outBase = join(tempDir, "transcript");
   const commandDir = dirname(resolve(command));
   const env = { ...process.env, PATH: `${commandDir}${os.platform() === "win32" ? ";" : ":"}${process.env.PATH || ""}` };
+  
+  let convertedAudioPath = null;
+  let actualAudioPath = audioPath;
+  
   try {
+    if (needsConversion(audioPath)) {
+      convertedAudioPath = join(tempDir, "audio.wav");
+      await convertToWav(audioPath, convertedAudioPath, env);
+      actualAudioPath = convertedAudioPath;
+    }
+    
     try {
       await execFileAsync(command, buildWhisperCppArgs({
         modelPath,
-        audioPath,
+        audioPath: actualAudioPath,
         outBase,
         language: params.language,
         translate: params.translate,
