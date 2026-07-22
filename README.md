@@ -58,12 +58,19 @@ Or run a quick transcription smoke test:
 /whisper-transcribe
 ```
 
-To manage models without environment variables:
+To manage models:
 
 ```text
 /whisper-model list
 /whisper-model select
 /whisper-model clear
+```
+
+To switch backends:
+
+```text
+/whisper-backend list
+/whisper-backend select <number>
 ```
 
 ## What it detects
