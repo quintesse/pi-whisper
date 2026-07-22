@@ -496,8 +496,8 @@ async function detectBackendType(command) {
   try {
     const { stdout } = await execFileAsync(command, ["--help"], { timeout: 5000 });
     // whisper.cpp uses -m for model, python uses --model
-    // whisper.cpp help mentions "whisper.cpp"
-    if (stdout.includes("whisper.cpp") || /\s-m\s/i.test(stdout)) {
+    // whisper.cpp help mentions "whisper.cpp" or has -m option
+    if (stdout.includes("whisper.cpp") || /-m\b/i.test(stdout)) {
       return "whisper.cpp";
     }
     if (stdout.includes("--model MODEL") || stdout.includes("openai-whisper")) {
