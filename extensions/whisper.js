@@ -567,36 +567,40 @@ async function detectAvailableBackends(env = process.env) {
 }
 
 async function listBackendsText() {
-  const detected = await detectBackend();
-  const currentBackend = detected.error ? null : detected.backend;
-  const currentCommand = detected.error ? null : detected.command;
-  
-  const backends = await detectAvailableBackends();
-  
-  if (backends.length === 0) {
-    return "No Whisper backends found. Ask the agent: 'set up Whisper for me'";
-  }
-  
-  const lines = [];
-  let index = 1;
-  
-  for (const backend of backends) {
-    const isCurrent = backend.name === currentBackend && backend.command === currentCommand;
-    const marker = isCurrent ? "*" : " ";
-    lines.push(`${marker} ${index}. ${backend.name} (${backend.command})`);
+  try {
+    const detected = await detectBackend();
+    const currentBackend = detected.error ? null : detected.backend;
+    const currentCommand = detected.error ? null : detected.command;
     
-    if (backend.models.length === 0) {
-      lines.push(`     No compatible models found`);
-    } else {
-      const modelList = backend.models.slice(0, 3).map(m => modelLabel(m)).join(", ");
-      const more = backend.models.length > 3 ? ` +${backend.models.length - 3} more` : "";
-      lines.push(`     Models: ${modelList}${more}`);
+    const backends = await detectAvailableBackends();
+    
+    if (backends.length === 0) {
+      return "No Whisper backends found. Ask the agent: 'set up Whisper for me'";
     }
     
-    index++;
+    const lines = [];
+    let index = 1;
+    
+    for (const backend of backends) {
+      const isCurrent = backend.name === currentBackend && backend.command === currentCommand;
+      const marker = isCurrent ? "*" : " ";
+      lines.push(`${marker} ${index}. ${backend.name} (${backend.command})`);
+      
+      if (backend.models.length === 0) {
+        lines.push(`     No compatible models found`);
+      } else {
+        const modelList = backend.models.slice(0, 3).map(m => modelLabel(m)).join(", ");
+        const more = backend.models.length > 3 ? ` +${backend.models.length - 3} more` : "";
+        lines.push(`     Models: ${modelList}${more}`);
+      }
+      
+      index++;
+    }
+    
+    return lines.join("\n");
+  } catch (error) {
+    return `Error listing backends: ${error.message}\n${error.stack}`;
   }
-  
-  return lines.join("\n");
 }
 
 async function selectBackend(backendIndex) {
