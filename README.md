@@ -34,7 +34,13 @@ If you have no Whisper backend installed yet:
 Set up Whisper for me
 ```
 
-Pi will use the bundled skill to install Python Whisper, ffmpeg, and configure everything automatically.
+Pi will:
+1. Detect your platform and what's already installed (Python, pipx, package managers)
+2. Recommend the best backend option (prefers Python whisper if Python/pipx exists to minimize new dependencies)
+3. Let you choose between whisper.cpp or Python whisper
+4. Guide you through installation with platform-specific commands
+
+The skill supports both backends on all platforms (macOS, Linux/WSL, Windows).
 
 ### Option 2: Manual backend setup
 
@@ -93,14 +99,16 @@ To switch backends:
 
 ## Backend setup
 
-Pick one backend setup. `whisper.cpp` is the recommended default; Python `whisper` is the portable fallback.
+**Tip:** Use the automated setup skill (see "Option 1" above) for guided installation with platform detection.
+
+For manual setup, pick one backend. Choose based on what's already installed to minimize dependencies:
 
 ### Quickest path by platform
 
-- **macOS:** use `whisper.cpp` via Homebrew
-- **Ubuntu / Debian / WSL:** install the distro `whisper.cpp` package when available
-- **Windows:** use the prebuilt `whisper.cpp` zip
-- **Any platform with Python already set up:** use Python `whisper` via `pipx`
+- **Python/pipx already installed:** use Python `whisper` (minimal new dependencies)
+- **macOS without Python:** use `whisper.cpp` via Homebrew
+- **Ubuntu / Debian / WSL without Python:** install the distro `whisper.cpp` package when available
+- **Windows without Python:** use the prebuilt `whisper.cpp` zip
 
 ### Audio format support
 
