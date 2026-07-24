@@ -119,7 +119,7 @@ export function buildWhisperCppArgs({ modelPath, audioPath, outBase, language, t
   if (timestamps) args.push("-osrt");
   args.push("-l", language || "auto");
   if (translate) args.push("-tr");
-  if (Number.isInteger(nThreads)) args.push("-t", String(nThreads));
+  if (Number.isInteger(nThreads) && nThreads > 0) args.push("-t", String(nThreads));
   return args;
 }
 

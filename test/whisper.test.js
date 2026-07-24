@@ -58,6 +58,20 @@ test("buildWhisperCppArgs keeps to boring stable flags", () => {
     "-tr",
     "-t", "4",
   ]);
+
+  assert.deepEqual(buildWhisperCppArgs({
+    modelPath: "/models/ggml-base.bin",
+    audioPath: "/tmp/audio.wav",
+    outBase: "/tmp/out/transcript",
+    nThreads: 0,
+  }), [
+    "-m", "/models/ggml-base.bin",
+    "-f", "/tmp/audio.wav",
+    "-np",
+    "-of", "/tmp/out/transcript",
+    "-otxt",
+    "-l", "auto",
+  ]);
 });
 
 test("buildPythonWhisperArgs uses model name and writes outputs", () => {
